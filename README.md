@@ -10,40 +10,38 @@ The image provides a reproducible environment containing Ceedling, Ruby, and the
 
 ## 📋 Table of Contents
 
-* [Features](#-features)
-* [Quick Start](#-quick-start)
-* [Usage Examples](#-usage-examples)
-* [Version Tags](#-version-tags)
-* [GitHub Actions Integration](#-github-actions-integration)
-* [Building from Source](#-building-from-source)
-* [Local Build Scripts](#-local-build-scripts)
-* [Version Management](#-version-management)
-* [License](#-license)
-* [Support](#-support)
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Usage Examples](#-usage-examples)
+- [Version Tags](#-version-tags)
+- [GitHub Actions Integration](#-github-actions-integration)
+- [Building from Source](#-building-from-source)
+- [Local Build Scripts](#-local-build-scripts)
+- [Version Management](#-version-management)
+- [License](#-license)
+- [Support](#-support)
 
 ## ✨ Features
 
-* **C Unit Testing**: Ready-to-use environment for C unit testing with Ceedling
-* **TDD Ready**: Designed for Test-Driven Development workflows
-* **Embedded Development**: Suitable for unit testing embedded C projects
-* **Lightweight Base**: Based on Alpine Linux
-* **CI/CD Ready**: Designed for GitHub Actions and other CI/CD systems
-* **Self-Contained**: Ceedling and required build dependencies are pre-installed
-* **Testing Frameworks**:
-
-  * Ceedling
-  * Unity
-  * CMock
-  * CException
-* **Native C Toolchain**:
-
-  * GCC
-  * musl-dev
-  * GNU Make
-  * binutils
-* **Reproducible Builds**: Ceedling, Ruby, and Alpine versions are explicitly defined
-* **Versioned Images**: Full image tags identify the Ceedling, Ruby, and Alpine versions
-* **Automated Version Management**: Project infrastructure can detect and track upstream releases
+- **C Unit Testing**: Ready-to-use environment for C unit testing with Ceedling
+- **TDD Ready**: Designed for Test-Driven Development workflows
+- **Embedded Development**: Suitable for unit testing embedded C projects
+- **Lightweight Base**: Based on Alpine Linux
+- **CI/CD Ready**: Designed for GitHub Actions and other CI/CD systems
+- **Self-Contained**: Ceedling and required build dependencies are pre-installed
+- **Testing Frameworks**:
+  - Ceedling
+  - Unity
+  - CMock
+  - CException
+- **Native C Toolchain**:
+  - GCC
+  - musl-dev
+  - GNU Make
+  - binutils
+- **Reproducible Builds**: Ceedling, Ruby, and Alpine versions are explicitly defined
+- **Versioned Images**: Full image tags identify the Ceedling, Ruby, and Alpine versions
+- **Automated Version Management**: Project infrastructure can detect and track upstream releases
 
 Ceedling itself provides build automation for C projects, including unit-test execution, mocking, test reporting, and integration with C toolchains.
 
@@ -150,19 +148,19 @@ Each image is published with both a `latest` tag and a complete version tag.
 | Tag                           | Description                  | Example                                             |
 | :---------------------------- | :--------------------------- | :-------------------------------------------------- |
 | `latest`                      | Latest published image       | `safdariali/ceedling:latest`                        |
-| `X.Y.Z-ruby-X.Y.Z-alpine-X.Y` | Complete version information | `safdariali/ceedling:1.1.1-ruby-3.4.10-alpine-3.24` |
+| `A.B.C-ruby-X.Y.Z-alpine-N.M` | Complete version information | `safdariali/ceedling:1.1.2-ruby-4.0.6-alpine-3.24` |
 
 ### Example
 
 ```text
-safdariali/ceedling:1.1.1-ruby-3.4.10-alpine-3.24
+safdariali/ceedling:1.1.2-ruby-4.0.6-alpine-3.24
 ```
 
 represents:
 
 ```text
-Ceedling = 1.1.1
-Ruby     = 3.4.10
+Ceedling = 1.1.2
+Ruby     = 4.0.6
 Alpine   = 3.24
 ```
 
@@ -208,7 +206,7 @@ For reproducible CI builds, use a complete image tag:
 
 ```yaml
 container:
-  image: safdariali/ceedling:1.1.1-ruby-3.4.10-alpine-3.24
+  image: safdariali/ceedling:1.1.2-ruby-4.0.6-alpine-3.24
 ```
 
 This prevents a future `latest` update from changing the test environment unexpectedly.
@@ -231,8 +229,8 @@ cd ceedling-docker
 
 ```bash
 docker build \
-  --build-arg CEEDLING_VERSION=1.1.1 \
-  --build-arg RUBY_VERSION=3.4.10 \
+  --build-arg CEEDLING_VERSION=1.1.2 \
+  --build-arg RUBY_VERSION=4.0.6 \
   --build-arg ALPINE_VERSION=3.24 \
   -t safdariali/ceedling:custom \
   .
@@ -260,8 +258,8 @@ Custom versions can be specified:
 
 ```powershell
 .\build-ceedling-local.ps1 `
-  -CeedlingVersion "1.1.1" `
-  -RubyVersion "3.4.10" `
+  -CeedlingVersion "1.1.2" `
+  -RubyVersion "4.0.6" `
   -AlpineVersion "3.24"
 ```
 
@@ -276,8 +274,8 @@ Custom versions:
 
 ```bash
 ./build-ceedling-local.sh \
-  --CeedlingVersion "1.1.1" \
-  --RubyVersion "3.4.10" \
+  --CeedlingVersion "1.1.2" \
+  --RubyVersion "4.0.6" \
   --AlpineVersion "3.24"
 ```
 
@@ -304,7 +302,7 @@ Alpine Linux
 
 Ceedling is distributed as a RubyGem and currently requires Ruby 3.0 or newer.
 
-The Docker image uses the official Ruby Docker image as its base, allowing Ruby and Alpine combinations to be selected through the image tag. The official Ruby image publishes Alpine-based tags such as `3.4.10-alpine3.24`.
+The Docker image uses the official Ruby Docker image as its base, allowing Ruby and Alpine combinations to be selected through the image tag. The official Ruby image publishes Alpine-based tags such as `4.0.6-alpine3.24`.
 
 The project includes automation infrastructure for detecting newer upstream versions and updating the build configuration.
 
@@ -353,7 +351,7 @@ docker pull safdariali/ceedling:latest
 Pull a specific version:
 
 ```bash
-docker pull safdariali/ceedling:1.1.1-ruby-3.4.10-alpine-3.24
+docker pull safdariali/ceedling:1.1.2-ruby-4.0.6-alpine-3.24
 ```
 
 ## 📄 License
