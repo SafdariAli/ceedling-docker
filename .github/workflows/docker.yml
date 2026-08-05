@@ -1,0 +1,168 @@
+name: Build and Publish Ceedling Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ceedling_version:
+        description: 'Ceedling version (e.g., 1.1.2)'
+        required: false
+        default: '1.1.2'
+        type: string
+
+      ruby_version:
+        description: 'Ruby version (e.g., 4.0.6)'
+        required: false
+        default: '3.4.10'
+        type: string
+
+      alpine_version:
+        description: 'Alpine version (e.g., 3.24)'
+        required: false
+        default: '3.24'
+        type: string
+
+
+jobs:
+  docker:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+
+    steps:
+
+      # --------------------------------------------
+      # Checkout source
+      # --------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # --------------------------------------------
+      # Setup Buildx
+      # --------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+
+      # --------------------------------------------
+      # Docker Hub login
+      # --------------------------------------------
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+      # --------------------------------------------
+      # Prepare versions and tags
+      # --------------------------------------------
+      - name: Get versions
+        id: versions
+        run: |
+
+          CEEDLING_VERSION="${{ github.event.inputs.ceedling_version }}"
+          RUBY_VERSION="${{ github.event.inputs.ruby_version }}"
+          ALPINE_VERSION="${{ github.event.inputs.alpine_version }}"
+
+
+          echo "🔨 Building with:"
+          echo "  Ceedling: $CEEDLING_VERSION"
+          echo "  Ruby:     $RUBY_VERSION"
+          echo "  Alpine:   $ALPINE_VERSION"
+
+
+          echo "CEEDLING_VERSION=$CEEDLING_VERSION" >> $GITHUB_OUTPUT
+          echo "RUBY_VERSION=$RUBY_VERSION" >> $GITHUB_OUTPUT
+          echo "ALPINE_VERSION=$ALPINE_VERSION" >> $GITHUB_OUTPUT
+
+
+          FULL_TAG="${CEEDLING_VERSION}-ruby-${RUBY_VERSION}-alpine-${ALPINE_VERSION}"
+
+
+          echo "FULL_TAG=$FULL_TAG" >> $GITHUB_OUTPUT
+
+
+      # --------------------------------------------
+      # Build Docker image
+      # --------------------------------------------
+      - name: Build Ceedling Docker image
+        run: |
+
+          FULL_TAG="${{ steps.versions.outputs.FULL_TAG }}"
+
+
+          docker build \
+            --build-arg CEEDLING_VERSION="${{ steps.versions.outputs.CEEDLING_VERSION }}" \
+            --build-arg RUBY_VERSION="${{ steps.versions.outputs.RUBY_VERSION }}" \
+            --build-arg ALPINE_VERSION="${{ steps.versions.outputs.ALPINE_VERSION }}" \
+            -t safdariali/ceedling:"$FULL_TAG" \
+            .
+
+
+      # --------------------------------------------
+      # Test Ceedling installation
+      # --------------------------------------------
+      - name: Test Ceedling
+        run: |
+
+          FULL_TAG="${{ steps.versions.outputs.FULL_TAG }}"
+
+
+          docker run --rm \
+          safdariali/ceedling:"$FULL_TAG" \
+          ceedling --version
+
+
+
+      # --------------------------------------------
+      # Push versioned image
+      # --------------------------------------------
+      - name: Push version image
+        if: success()
+        run: |
+
+          FULL_TAG="${{ steps.versions.outputs.FULL_TAG }}"
+
+
+          docker push \
+          safdariali/ceedling:"$FULL_TAG"
+
+
+
+      # --------------------------------------------
+      # Update latest tag
+      # --------------------------------------------
+      - name: Update latest tag
+        if: success()
+        run: |
+
+          FULL_TAG="${{ steps.versions.outputs.FULL_TAG }}"
+
+
+          echo "✅ Tests passed!"
+          echo "Updating latest tag..."
+
+
+          docker tag \
+          safdariali/ceedling:"$FULL_TAG" \
+          safdariali/ceedling:latest
+
+
+          docker push \
+          safdariali/ceedling:latest
+
+
+
+      # --------------------------------------------
+      # Failure notification
+      # --------------------------------------------
+      - name: Send failure notification
+        if: failure()
+        run: |
+
+          echo "❌ Build failed!"
+          echo "⚠️ Latest tag remains unchanged."

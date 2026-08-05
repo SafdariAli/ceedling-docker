@@ -1,0 +1,467 @@
+// ============================================
+// Function 1: Get the latest SDCC version from SourceForge
+// ============================================
+
+function getSDCCVersion() {
+  try {
+    Logger.log('Fetching the latest SDCC version from SourceForge...');
+    
+    const url = 'https://sourceforge.net/projects/sdcc/files/snapshot_builds/sdcc-src/';
+    
+    const options = {
+      'muteHttpExceptions': true,
+      'headers': {
+        'User-Agent': 'Mozilla/5.0 (compatible; GoogleAppsScript)'
+      }
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const html = response.getContentText();
+    
+    if (response.getResponseCode() !== 200) {
+      Logger.log('❌ Error: Response code ' + response.getResponseCode());
+      return null;
+    }
+    
+    // Search for pattern sdcc-src-YYYYMMDD-XXXXX.tar.bz2
+    const pattern = /sdcc-src-(\d{8}-\d+)\.tar\.bz2/g;
+    let matches = [];
+    let match;
+    
+    while ((match = pattern.exec(html)) !== null) {
+      matches.push(match[1]);
+    }
+    
+    if (matches.length === 0) {
+      Logger.log('❌ No versions found');
+      return null;
+    }
+    
+    // Find the latest version (based on date)
+    let latest = matches[0];
+    let latestDate = parseInt(matches[0].split('-')[0]);
+    
+    for (let i = 1; i < matches.length; i++) {
+      const datePart = parseInt(matches[i].split('-')[0]);
+      if (datePart > latestDate) {
+        latestDate = datePart;
+        latest = matches[i];
+      }
+    }
+    
+    Logger.log('✅ Latest SDCC version: ' + latest);
+    return latest;
+    
+  } catch (error) {
+    Logger.log('❌ Error fetching SDCC version: ' + error.toString());
+    return null;
+  }
+}
+
+// ============================================
+// Function 2: Get latest Alpine version from multiple sources
+// ============================================
+
+function getLatestAlpineVersion() {
+  try {
+    Logger.log('Fetching latest Alpine version...');
+    
+    // getversion from Docker Hub
+    try {
+      const url = 'https://hub.docker.com/v2/repositories/library/alpine/tags?page_size=50';
+      const response = UrlFetchApp.fetch(url, {
+        'muteHttpExceptions': true,
+        'headers': {'Accept': 'application/json'}
+      });
+      
+      if (response.getResponseCode() === 200) {
+        const data = JSON.parse(response.getContentText());
+        let latestVersion = null;
+        let latestValue = 0;
+        
+        for (const result of data.results) {
+          const tag = result.name;
+          if (tag.match(/^\d+\.\d+\.\d+$/)) {
+            const parts = tag.split('.').map(Number);
+            const value = parts[0] * 10000 + parts[1] * 100 + parts[2];
+            if (value > latestValue) {
+              latestValue = value;
+              latestVersion = tag;
+            }
+          }
+        }
+        
+        if (latestVersion) {
+          Logger.log('✅ Latest Alpine version from docker: ' + latestVersion);
+          return latestVersion;
+        }
+      }
+    } catch (e) {
+      Logger.log('⚠️ Could not fetch from Docker Hub: ' + e.toString());
+    }
+    
+    // Method 3: From GitHub (Dockerfile)
+    const githubVersion = getAlpineVersionFromGitHub();
+    if (githubVersion) {
+      Logger.log('✅ Alpine version from GitHub: ' + githubVersion);
+      return githubVersion;
+    }
+    
+    Logger.log('⚠️ Could not find Alpine version, using default');
+    return '3.24.1';
+    
+  } catch (error) {
+    Logger.log('❌ Error fetching Alpine version: ' + error.toString());
+    return '3.24.1';
+  }
+}
+
+// ============================================
+// Function 3: Get current versions from Docker Hub
+// ============================================
+
+function getCurrentVersions() {
+  try {
+    Logger.log('Fetching current versions from Docker Hub...');
+    
+    const username = 'safdariali';
+    const repo = 'sdcc-8051';
+    
+    const url = `https://hub.docker.com/v2/repositories/${username}/${repo}/tags?page_size=20`;
+    
+    const options = {
+      'muteHttpExceptions': true,
+      'headers': {
+        'Accept': 'application/json'
+      }
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+    
+    if (!data.results || data.results.length === 0) {
+      Logger.log('❌ No tags found on Docker Hub');
+      return null;
+    }
+    
+    let currentSDCC = null;
+    let currentAlpine = null;
+    let latestDate = 0;
+    
+    // Find the latest tag with full version format
+    for (let i = 0; i < data.results.length; i++) {
+      const tag = data.results[i].name;
+      
+      // Match format: YYYYMMDD-XXXXX-alpine-X.Y.Z
+      const match = tag.match(/^(\d{8}-\d+)-alpine-([\d.]+)$/);
+      
+      if (match) {
+        const sdccVer = match[1];
+        const alpineVer = match[2];
+        const datePart = parseInt(sdccVer.split('-')[0]);
+        
+        // Find the latest version
+        if (datePart > latestDate) {
+          latestDate = datePart;
+          currentSDCC = sdccVer;
+          currentAlpine = alpineVer;
+        }
+      }
+    }
+    
+    if (currentSDCC && currentAlpine) {
+      Logger.log(`✅ Current versions - SDCC: ${currentSDCC}, Alpine: ${currentAlpine}`);
+    } else {
+      Logger.log('⚠️ No full version tags found');
+    }
+    
+    return {
+      sdcc: currentSDCC,
+      alpine: currentAlpine
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error fetching versions from Docker Hub: ' + error.toString());
+    return null;
+  }
+}
+
+// ============================================
+// Function 4: Main function - Check both versions and build if needed
+// ============================================
+
+function checkAndBuild() {
+  try {
+    Logger.log('========================================');
+    Logger.log('🔄 Starting comprehensive version check');
+    Logger.log('========================================');
+    
+    // 1. Get latest versions
+    const latestSDCC = getSDCCVersion();
+    if (!latestSDCC) {
+      throw new Error('❌ Failed to fetch latest SDCC version');
+    }
+    
+    const latestAlpine = getLatestAlpineVersion();
+    if (!latestAlpine) {
+      throw new Error('❌ Failed to fetch latest Alpine version');
+    }
+    
+    Logger.log(`📦 Latest versions - SDCC: ${latestSDCC}, Alpine: ${latestAlpine}`);
+    
+    // 2. Get current versions from Docker Hub
+    const currentVersions = getCurrentVersions();
+    
+    if (!currentVersions || !currentVersions.sdcc || !currentVersions.alpine) {
+      Logger.log('🚀 No existing version found. Building first version...');
+      
+      // No version exists, build immediately
+      const result = triggerGitHubBuild(latestSDCC, latestAlpine);
+      
+      if (result) {
+        Logger.log('✅ Initial build triggered successfully');
+        return {
+          success: true,
+          sdcc: latestSDCC,
+          alpine: latestAlpine,
+          message: `Initial build for SDCC ${latestSDCC} and Alpine ${latestAlpine} started`
+        };
+      } else {
+        throw new Error('❌ Failed to trigger initial build');
+      }
+    }
+    
+    // 3. Compare versions
+    const sdccChanged = currentVersions.sdcc !== latestSDCC;
+    const alpineChanged = currentVersions.alpine !== latestAlpine;
+    
+    Logger.log(`📊 Comparison:
+      SDCC: ${currentVersions.sdcc} → ${latestSDCC} ${sdccChanged ? '🔴 CHANGED' : '✅ Same'}
+      Alpine: ${currentVersions.alpine} → ${latestAlpine} ${alpineChanged ? '🔴 CHANGED' : '✅ Same'}`
+    );
+    
+    // 4. If either version changed, build new image
+    if (sdccChanged || alpineChanged) {
+      Logger.log('========================================');
+      Logger.log('🚨 New versions detected! Building new image...');
+      
+      if (sdccChanged) {
+        Logger.log(`  SDCC: ${currentVersions.sdcc} → ${latestSDCC}`);
+      }
+      if (alpineChanged) {
+        Logger.log(`  Alpine: ${currentVersions.alpine} → ${latestAlpine}`);
+      }
+      Logger.log('========================================');
+      
+      // 5. Trigger GitHub Action with both versions
+      const result = triggerGitHubBuild(latestSDCC, latestAlpine);
+      
+      if (result) {
+        Logger.log('✅ GitHub Action triggered successfully');
+        return {
+          success: true,
+          sdcc: latestSDCC,
+          alpine: latestAlpine,
+          changes: {
+            sdcc: sdccChanged,
+            alpine: alpineChanged
+          },
+          message: `Build started for SDCC ${latestSDCC} and Alpine ${latestAlpine}`
+        };
+      } else {
+        throw new Error('❌ Failed to trigger GitHub Action');
+      }
+      
+    } else {
+      Logger.log('========================================');
+      Logger.log('✅ All versions are up to date!');
+      Logger.log(`  SDCC: ${currentVersions.sdcc}`);
+      Logger.log(`  Alpine: ${currentVersions.alpine}`);
+      Logger.log('========================================');
+      
+      return {
+        success: true,
+        sdcc: currentVersions.sdcc,
+        alpine: currentVersions.alpine,
+        message: 'All versions are up to date'
+      };
+    }
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.toString());
+    sendErrorEmail(error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// ============================================
+// Function 5: Trigger GitHub Action
+// ============================================
+
+function triggerGitHubBuild(sdccVersion, alpineVersion) {
+  try {
+    Logger.log('🚀 Triggering GitHub Action...');
+    Logger.log(`  SDCC: ${sdccVersion}`);
+    Logger.log(`  Alpine: ${alpineVersion}`);
+    
+    const token = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
+    const repo = 'SafdariAli/sdcc-8051-docker';
+    
+    if (!token) {
+      throw new Error('❌ GITHUB_TOKEN is not set');
+    }
+    
+    const url = `https://api.github.com/repos/${repo}/actions/workflows/docker.yml/dispatches`;
+    
+    const payload = {
+      ref: 'main',
+      inputs: {
+        sdcc_snapshot: sdccVersion,
+        alpine_version: alpineVersion
+      }
+    };
+    
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const statusCode = response.getResponseCode();
+    
+    if (statusCode === 204) {
+      Logger.log('✅ GitHub Action triggered successfully');
+      return true;
+    } else {
+      throw new Error(`Error: Status code ${statusCode}`);
+    }
+    
+  } catch (error) {
+    Logger.log('❌ Error triggering build: ' + error.toString());
+    return false;
+  }
+}
+
+// ============================================
+// Function 6: Send error email notification
+// ============================================
+
+function sendErrorEmail(errorMessage) {
+  try {
+    const email = PropertiesService.getScriptProperties().getProperty('NOTIFICATION_EMAIL');
+    
+    if (!email) {
+      Logger.log('⚠️ NOTIFICATION_EMAIL is not set in Script Properties');
+      return;
+    }
+    
+    const subject = '❌ SDCC/Alpine Docker Build Error';
+    const body = `
+An error occurred during the version check and build process:
+
+❌ Error:
+${errorMessage}
+
+Time: ${new Date().toISOString()}
+
+Please check the logs for more details.
+    `;
+    
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body
+    });
+    
+    Logger.log('✅ Error email sent');
+    
+  } catch (error) {
+    Logger.log('❌ Error sending email: ' + error.toString());
+  }
+}
+
+// ============================================
+// Function 7: Setup daily automatic check (at 9 AM)
+// ============================================
+
+function setupDailyCheck() {
+  // Remove existing triggers
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'checkAndBuild') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  
+  // Create new daily trigger
+  ScriptApp.newTrigger('checkAndBuild')
+    .timeBased()
+    .everyDays(1)
+    .atHour(9)
+    .create();
+  
+  Logger.log('✅ Daily trigger set for 9 AM');
+}
+
+// ============================================
+// Function 8: Manual run with logging
+// ============================================
+
+function runManualCheck() {
+  Logger.log('========================================');
+  Logger.log('🔄 Manual version check started');
+  Logger.log('========================================');
+  
+  const result = checkAndBuild();
+  
+  Logger.log('========================================');
+  Logger.log('📊 Result:');
+  Logger.log(JSON.stringify(result, null, 2));
+  Logger.log('========================================');
+  
+  return result;
+}
+
+// ============================================
+// Function 9: Get Alpine version from GitHub Dockerfile (backup method)
+// ============================================
+
+function getAlpineVersionFromGitHub() {
+  try {
+    Logger.log('Fetching Alpine version from GitHub Dockerfile...');
+    
+    const url = 'https://raw.githubusercontent.com/SafdariAli/sdcc-8051-docker/main/Dockerfile';
+    
+    const options = {
+      'muteHttpExceptions': true,
+      'headers': {
+        'User-Agent': 'GoogleAppsScript'
+      }
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const content = response.getContentText();
+    
+    // Search for Alpine version in Dockerfile
+    const match = content.match(/ARG ALPINE_VERSION=([\d.]+)/);
+    if (match) {
+      Logger.log('✅ Alpine version from GitHub: ' + match[1]);
+      return match[1];
+    }
+    
+    return null;
+    
+  } catch (error) {
+    Logger.log('❌ Error fetching from GitHub: ' + error.toString());
+    return null;
+  }
+}
